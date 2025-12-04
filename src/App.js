@@ -221,6 +221,7 @@ const DEFAULT_PROFILE = {
   heroSlides: DEFAULT_SLIDES,
   showSlogan: true,
   showSlideTitle: true,
+  adminPasscode: "", // Default empty, falls back to APP_CONFIG
   content: {
     cn: { title: "以光为墨，记录世界。", bio: "这里不只是照片，而是时间的切片。", aboutText: "你好，我是 T8DAY..." },
     en: { title: "Painting with light.", bio: "Slices of time.", aboutText: "Hi, I am T8DAY..." },
@@ -322,8 +323,8 @@ const GlobalNav = ({ profile, ui, onNavClick, lang, setLang, mobileMenuOpen, set
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 py-6 md:py-8 px-6 md:px-12 flex justify-between items-center transition-all duration-500 bg-gradient-to-b from-neutral-950/80 to-transparent backdrop-blur-[2px]">
         <div className="cursor-pointer flex items-center gap-2 hover:opacity-80 transition-opacity" onClick={() => onNavClick("home")}>
-          {/* [FIXED] LOGO 尺寸调整为 h-4 (16px) md:h-5 (20px) */}
-          {profile.logoUrl ? <img src={profile.logoUrl} alt="Logo" className="h-4 md:h-5 w-auto object-contain" /> : <><Aperture className="w-4 h-4 text-white/40" /><span className="text-white/40 font-medium tracking-widest text-sm font-serif">{profile.brandName}</span></>}
+          {/* LOGO 尺寸: h-3 (12px) md:h-3.5 (14px) */}
+          {profile.logoUrl ? <img src={profile.logoUrl} alt="Logo" className="h-3 md:h-3.5 w-auto object-contain" /> : <><Aperture className="w-4 h-4 text-white/40" /><span className="text-white/40 font-medium tracking-widest text-sm font-serif">{profile.brandName}</span></>}
         </div>
         
         <div className="hidden md:flex items-center gap-12">
@@ -605,7 +606,6 @@ const ImmersiveLightbox = ({ initialIndex, images, onClose, onIndexChange, lang 
          </div>
 
          <div className="flex items-center gap-4 pointer-events-auto z-[110]">
-             {/* 手机端翻页按钮 */}
              <div className="md:hidden flex items-center gap-4">
                  <button 
                     onClick={(e) => {e.stopPropagation(); changeImage("prev");}} 
@@ -716,8 +716,8 @@ const WorksPage = ({ photos, profile, ui, onImageClick, lang }) => {
   const getSortedProjects = (year) => {
       const projs = Object.keys(groupedByYearAndProject[year]);
       return projs.sort((a, b) => {
-        const minA = Math.min(...grouped[year][a].map(p => p.order || 0));
-        const minB = Math.min(...grouped[year][b].map(p => p.order || 0));
+        const minA = Math.min(...groupedByYearAndProject[year][a].map(p => p.order || 0));
+        const minB = Math.min(...groupedByYearAndProject[year][b].map(p => p.order || 0));
         return minA - minB;
       });
   };
@@ -1250,6 +1250,11 @@ const ProfileSettings = ({ settings, onUpdate }) => {
                     <label className="block text-xs text-neutral-500 mb-1">Browser Title</label>
                     <input className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.siteTitle || ''} onChange={(e) => handleChange('siteTitle', e.target.value)} />
                 </div>
+                {/* Security Section */}
+                <div>
+                    <label className="block text-xs text-neutral-500 mb-1 flex items-center gap-1"><Lock size={12}/> Admin Passcode</label>
+                    <input className="w-full bg-black border border-neutral-700 rounded p-2 text-white" placeholder="Default: 8888" value={formData.adminPasscode || ''} onChange={(e) => handleChange('adminPasscode', e.target.value)} />
+                </div>
              </div>
          </div>
       </div>
@@ -1455,15 +1460,11 @@ const MainView = ({ photos, settings, onLoginClick, isOffline }) => {
     <div className="bg-neutral-950 text-neutral-200 font-sans selection:bg-white selection:text-black relative">
       <MetaUpdater profile={settings.profile} />
       <div className="noise-bg"></div>
-      {/* Z-Index Fix: GlobalNav (50) > MainView (10/20) > HeroSlideshow (0) > Noise (0) */}
       <button onClick={onLoginClick} className="fixed bottom-6 right-6 z-50 bg-neutral-900/50 hover:bg-white hover:text-black text-white/50 p-3 rounded-full transition-all duration-500 border border-white/10 hover:border-white shadow-lg backdrop-blur-md"><Settings className="w-4 h-4" /></button>
       <GlobalNav profile={profile} ui={ui} onNavClick={handleNavClick} lang={lang} setLang={setLang} mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
       {view === "home" && !showAbout && (
         <div className="relative h-[100dvh] w-full overflow-hidden">
-          {/* Z-Index Fix: HeroSlideshow is base layer */}
-          <HeroSlideshow slides={slides} onIndexChange={setCurrentSlideIndex} onLinkClick={handleLinkNavigation} />
-          
-          {/* Z-Index Fix: Slogan Text is layer 10 (Clickable: pointer-events-none on container, auto on text if needed) */}
+          {/* Slogan & Title Overlay */}
           {(profile.showSlogan || profile.showSlideTitle) && (
             <div className="absolute inset-0 pointer-events-none z-10">
               {slides.map((slide, index) => {
@@ -1499,6 +1500,7 @@ const MainView = ({ photos, settings, onLoginClick, isOffline }) => {
               })}
             </div>
           )}
+          <HeroSlideshow slides={slides} onIndexChange={setCurrentSlideIndex} onLinkClick={handleLinkNavigation} />
         </div>
       )}
       {view === "works" && !showAbout && <WorksPage photos={visiblePhotos} profile={profile} ui={ui} onImageClick={handleImageClick} lang={lang} />}
@@ -1544,12 +1546,12 @@ const AppContent = () => {
         if (prev) {
           console.warn("Loading timed out, switching to offline mode");
           setIsOffline(true);
-          // Even if timed out, keep existing data if any
+          setPhotos([]); 
           return false;
         }
         return prev;
       });
-    }, 8000); // Extended timeout for mobile
+    }, 8000); // Extended timeout
 
     const initAuth = async () => {
       if (!auth) return; 
@@ -1571,8 +1573,7 @@ const AppContent = () => {
   }, []);
 
   useEffect(() => {
-    // Removed strict user check to allow loading public data even if auth is pending/failed
-    // assuming Firestore rules allow public read
+    // Removed strict user check to allow public read even if auth fails
     if (!db) return;
     
     const unsubPhotos = onSnapshot(getPublicCollection("photos"), (snap) => {
@@ -1601,7 +1602,15 @@ const AppContent = () => {
     return () => { unsubPhotos(); unsubSettings(); };
   }, [user]); // Still re-run on user change for admin rights
 
-  const handleLoginAttempt = (pass) => { if (pass === APP_CONFIG.adminPasscode) { setShowLogin(false); setViewMode("admin"); } else { alert("Wrong Passcode"); } };
+  const handleLoginAttempt = (pass) => { 
+    const correctPass = settings.profile?.adminPasscode || APP_CONFIG.adminPasscode;
+    if (pass === correctPass) { 
+        setShowLogin(false); 
+        setViewMode("admin"); 
+    } else { 
+        alert("Wrong Passcode"); 
+    } 
+  };
   const handleAddPhoto = async (d) => await addDoc(getPublicCollection("photos"), { ...d, createdAt: serverTimestamp() });
   const handleDeletePhoto = async (id) => await deleteDoc(getPublicDoc("photos", id));
   const handleUpdateSettings = async (s) => await setDoc(getPublicDoc("settings", "global"), s, { merge: true });
